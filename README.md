@@ -3,6 +3,8 @@
 Social reading and reviewing, decentralized with ActivityPub
 
 ## Setting up the developer environment
+
+### Local
 You will need postgres installed and running on your computer.
 
 ``` bash
@@ -28,6 +30,13 @@ And go to the app at `localhost:8000`
 
 For most testing, you'll want to use ngrok. Remember to set the DOMAIN in `.env` to your ngrok domain.
 
+### Glitch
+- On Glitch, New Project > Clone from Git repo -- paste in address of this repo
+- Open Glitch console, switch to glitch branch `git checkout glitch`, then `refresh` to update editor
+- Copy `.env.example` to `.env`
+- In `.env`, change `FEDIREADS_DATABASE_BACKEND` to `sqlite` and `DOMAIN` to the Glitch project's subdomain
+- Run `./rebuilddb.sh` in Glitch console
+- ??? Profit ???????
 
 ## Structure
 

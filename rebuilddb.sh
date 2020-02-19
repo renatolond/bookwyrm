@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Glitch doesn't use the virtual environment, we have to explicitly ask for python3
+alias python=python3
+
 if [ ! -f .env ]; then
   echo "No .env found -- copying .example.env to .env!"
   cp .env.example .env
