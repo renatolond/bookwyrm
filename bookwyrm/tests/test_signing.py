@@ -75,7 +75,7 @@ class Signature(TestCase):
         data = json.dumps(get_follow_data(sender, self.rat))
         digest = digest or make_digest(data)
         signature = make_signature(
-            signer or sender, self.rat.inbox, now, digest)
+            'post', signer or sender, self.rat.inbox, now, digest)
         with patch('bookwyrm.incoming.handle_follow.delay'):
             with patch('bookwyrm.models.user.set_remote_server.delay'):
                 return self.send(signature, now, send_data or data, digest)
