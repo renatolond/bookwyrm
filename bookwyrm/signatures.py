@@ -22,26 +22,29 @@ def create_key_pair():
     return private_key, public_key
 
 
-def make_signature(sender, destination, date, digest):
+def make_signature(method, sender, destination, date, digest):
     """ uses a private key to sign an outgoing message """
     inbox_parts = urlparse(destination)
     signature_headers = [
-        "(request-target): post %s" % inbox_parts.path,
+        "(request-target): %s %s" % (method, inbox_parts.path),
         "host: %s" % inbox_parts.netloc,
         "date: %s" % date,
-        "digest: %s" % digest,
     ]
+    headers = "(request-target) host date"
+    if digest is not None:
+        signature_headers.append("digest: %s" % digest)
+        headers = "(request-target) host date digest"
+
     message_to_sign = "\n".join(signature_headers)
     signer = pkcs1_15.new(RSA.import_key(sender.key_pair.private_key))
     signed_message = signer.sign(SHA256.new(message_to_sign.encode("utf8")))
     signature = {
         "keyId": "%s#main-key" % sender.remote_id,
         "algorithm": "rsa-sha256",
-        "headers": "(request-target) host date digest",
+        "headers": headers,
         "signature": b64encode(signed_message).decode("utf8"),
     }
     return ",".join('%s="%s"' % (k, v) for (k, v) in signature.items())
-
 
 def make_digest(data):
     """ creates a message digest for signing """
