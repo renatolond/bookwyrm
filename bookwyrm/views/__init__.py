@@ -1,10 +1,12 @@
 """ make sure all our nice views are available """
+from .announcements import Announcements, Announcement, delete_announcement
 from .authentication import Login, Register, Logout
 from .author import Author, EditAuthor
 from .block import Block, unblock
 from .books import Book, EditBook, ConfirmEditBook, Editions
 from .books import upload_cover, add_description, switch_edition, resolve_book
 from .directory import Directory
+from .edit_user import EditUser, DeleteUser
 from .federation import Federation, FederatedServer
 from .federation import AddFederatedServer, ImportServerBlocklist
 from .federation import block_server, unblock_server
@@ -23,9 +25,10 @@ from .landing import About, Home, Discover
 from .list import Lists, List, Curate, UserLists
 from .notifications import Notifications
 from .outbox import Outbox
-from .reading import edit_readthrough, create_readthrough, delete_readthrough
-from .reading import start_reading, finish_reading, delete_progressupdate
-from .reports import Report, Reports, make_report, resolve_report, deactivate_user
+from .reading import edit_readthrough, create_readthrough
+from .reading import delete_readthrough, delete_progressupdate
+from .reading import ReadingStatus
+from .reports import Report, Reports, make_report, resolve_report, suspend_user
 from .rss_feed import RssFeed
 from .password import PasswordResetRequest, PasswordReset, ChangePassword
 from .search import Search
@@ -34,8 +37,7 @@ from .shelf import create_shelf, delete_shelf
 from .shelf import shelve, unshelve
 from .site import Site
 from .status import CreateStatus, DeleteStatus, DeleteAndRedraft
-from .tag import Tag, AddTag, RemoveTag
 from .updates import get_notification_count, get_unread_status_count
-from .user import User, EditUser, Followers, Following
-from .user_admin import UserAdmin
+from .user import User, Followers, Following
+from .user_admin import UserAdmin, UserAdminList
 from .wellknown import *

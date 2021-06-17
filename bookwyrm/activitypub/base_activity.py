@@ -14,11 +14,11 @@ from bookwyrm import models
 from bookwyrm.signatures import make_signature
 
 class ActivitySerializerError(ValueError):
-    """ routine problems serializing activitypub json """
+    """routine problems serializing activitypub json"""
 
 
 class ActivityEncoder(JSONEncoder):
-    """  used to convert an Activity object into json """
+    """used to convert an Activity object into json"""
 
     def default(self, o):
         return o.__dict__
@@ -26,7 +26,7 @@ class ActivityEncoder(JSONEncoder):
 
 @dataclass
 class Link:
-    """ for tagging a book in a status """
+    """for tagging a book in a status"""
 
     href: str
     name: str
@@ -35,14 +35,14 @@ class Link:
 
 @dataclass
 class Mention(Link):
-    """ a subtype of Link for mentioning an actor """
+    """a subtype of Link for mentioning an actor"""
 
     type: str = "Mention"
 
 
 @dataclass
 class Signature:
-    """ public key block """
+    """public key block"""
 
     creator: str
     created: str
@@ -51,7 +51,7 @@ class Signature:
 
 
 def naive_parse(activity_objects, activity_json, serializer=None):
-    """ this navigates circular import issues """
+    """this navigates circular import issues"""
     if not serializer:
         if activity_json.get("publicKeyPem"):
             # ugh
@@ -71,7 +71,7 @@ def naive_parse(activity_objects, activity_json, serializer=None):
 
 @dataclass(init=False)
 class ActivityObject:
-    """ actor activitypub json """
+    """actor activitypub json"""
 
     id: str
     type: str
@@ -110,7 +110,7 @@ class ActivityObject:
             setattr(self, field.name, value)
 
     def to_model(self, model=None, instance=None, allow_create=True, save=True):
-        """ convert from an activity to a model instance """
+        """convert from an activity to a model instance"""
         model = model or get_model_from_type(self.type)
 
         # only reject statuses if we're potentially creating them
@@ -185,7 +185,7 @@ class ActivityObject:
         return instance
 
     def serialize(self):
-        """ convert to dictionary with context attr """
+        """convert to dictionary with context attr"""
         data = self.__dict__.copy()
         # recursively serialize
         for (k, v) in data.items():
@@ -204,7 +204,7 @@ class ActivityObject:
 def set_related_field(
     model_name, origin_model_name, related_field_name, related_remote_id, data
 ):
-    """ load reverse related fields (editions, attachments) without blocking """
+    """load reverse related fields (editions, attachments) without blocking"""
     model = apps.get_model("bookwyrm.%s" % model_name, require_ready=True)
     origin_model = apps.get_model("bookwyrm.%s" % origin_model_name, require_ready=True)
 
@@ -240,7 +240,7 @@ def set_related_field(
 
 
 def get_model_from_type(activity_type):
-    """ given the activity, what type of model """
+    """given the activity, what type of model"""
     models = apps.get_models()
     model = [
         m
@@ -259,7 +259,7 @@ def get_model_from_type(activity_type):
 def resolve_remote_id(
     remote_id, model=None, refresh=False, save=True, get_activity=False
 ):
-    """ take a remote_id and return an instance, creating if necessary """
+    """take a remote_id and return an instance, creating if necessary"""
     if model:  # a bonus check we can do if we already know the model
         result = model.find_existing_by_remote_id(remote_id)
         if result and not refresh:

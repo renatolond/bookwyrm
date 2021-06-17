@@ -12,10 +12,10 @@ from bookwyrm.activitypub import ActivitypubResponse
 
 # pylint: disable=unused-argument
 class ListViews(TestCase):
-    """ tag views"""
+    """tag views"""
 
     def setUp(self):
-        """ we need basic test data and mocks """
+        """we need basic test data and mocks"""
         self.factory = RequestFactory()
         self.local_user = models.User.objects.create_user(
             "mouse@local.com",
@@ -39,6 +39,25 @@ class ListViews(TestCase):
             remote_id="https://example.com/book/1",
             parent_work=work,
         )
+        work_two = models.Work.objects.create(title="Labori")
+        self.book_two = models.Edition.objects.create(
+            title="Example Edition 2",
+            remote_id="https://example.com/book/2",
+            parent_work=work_two,
+        )
+        work_three = models.Work.objects.create(title="Trabajar")
+        self.book_three = models.Edition.objects.create(
+            title="Example Edition 3",
+            remote_id="https://example.com/book/3",
+            parent_work=work_three,
+        )
+        work_four = models.Work.objects.create(title="Travailler")
+        self.book_four = models.Edition.objects.create(
+            title="Example Edition 4",
+            remote_id="https://example.com/book/4",
+            parent_work=work_four,
+        )
+
         with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
             self.list = models.List.objects.create(
                 name="Test List", user=self.local_user
@@ -48,7 +67,7 @@ class ListViews(TestCase):
         models.SiteSettings.objects.create()
 
     def test_lists_page(self):
-        """ there are so many views, this just makes sure it LOADS """
+        """there are so many views, this just makes sure it LOADS"""
         view = views.Lists.as_view()
         with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
             models.List.objects.create(name="Public list", user=self.local_user)
@@ -71,7 +90,7 @@ class ListViews(TestCase):
         self.assertEqual(result.status_code, 200)
 
     def test_lists_create(self):
-        """ create list view """
+        """create list view"""
         view = views.Lists.as_view()
         request = self.factory.post(
             "",
@@ -99,7 +118,77 @@ class ListViews(TestCase):
         self.assertEqual(new_list.curation, "open")
 
     def test_list_page(self):
-        """ there are so many views, this just makes sure it LOADS """
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.List.as_view()
+        request = self.factory.get("")
+        request.user = self.local_user
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            models.ListItem.objects.create(
+                book_list=self.list,
+                user=self.local_user,
+                book=self.book,
+                approved=True,
+                order=1,
+            )
+
+        with patch("bookwyrm.views.list.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.list.id)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+    def test_list_page_sorted(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.List.as_view()
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            for (i, book) in enumerate([self.book, self.book_two, self.book_three]):
+                models.ListItem.objects.create(
+                    book_list=self.list,
+                    user=self.local_user,
+                    book=book,
+                    approved=True,
+                    order=i + 1,
+                )
+
+        request = self.factory.get("/?sort_by=order")
+        request.user = self.local_user
+        with patch("bookwyrm.views.list.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.list.id)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+        request = self.factory.get("/?sort_by=title")
+        request.user = self.local_user
+        with patch("bookwyrm.views.list.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.list.id)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+        request = self.factory.get("/?sort_by=rating")
+        request.user = self.local_user
+        with patch("bookwyrm.views.list.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.list.id)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+        request = self.factory.get("/?sort_by=sdkfh")
+        request.user = self.local_user
+        with patch("bookwyrm.views.list.is_api_request") as is_api:
+            is_api.return_value = False
+            result = view(request, self.list.id)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+    def test_list_page_empty(self):
+        """there are so many views, this just makes sure it LOADS"""
         view = views.List.as_view()
         request = self.factory.get("")
         request.user = self.local_user
@@ -111,6 +200,19 @@ class ListViews(TestCase):
         result.render()
         self.assertEqual(result.status_code, 200)
 
+    def test_list_page_logged_out(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.List.as_view()
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            models.ListItem.objects.create(
+                book_list=self.list,
+                user=self.local_user,
+                book=self.book,
+                approved=True,
+                order=1,
+            )
+
+        request = self.factory.get("")
         request.user = self.anonymous_user
         with patch("bookwyrm.views.list.is_api_request") as is_api:
             is_api.return_value = False
@@ -119,11 +221,31 @@ class ListViews(TestCase):
         result.render()
         self.assertEqual(result.status_code, 200)
 
+    def test_list_page_json_view(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.List.as_view()
+        request = self.factory.get("")
+        request.user = self.local_user
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            models.ListItem.objects.create(
+                book_list=self.list,
+                user=self.local_user,
+                book=self.book,
+                approved=True,
+                order=1,
+            )
+
         with patch("bookwyrm.views.list.is_api_request") as is_api:
             is_api.return_value = True
             result = view(request, self.list.id)
         self.assertIsInstance(result, ActivitypubResponse)
         self.assertEqual(result.status_code, 200)
+
+    def test_list_page_json_view_page(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.List.as_view()
+        request = self.factory.get("")
+        request.user = self.local_user
 
         request = self.factory.get("/?page=1")
         request.user = self.local_user
@@ -134,7 +256,7 @@ class ListViews(TestCase):
         self.assertEqual(result.status_code, 200)
 
     def test_list_edit(self):
-        """ edit a list """
+        """edit a list"""
         view = views.List.as_view()
         request = self.factory.post(
             "",
@@ -166,7 +288,7 @@ class ListViews(TestCase):
         self.assertEqual(self.list.curation, "curated")
 
     def test_curate_page(self):
-        """ there are so many views, this just makes sure it LOADS """
+        """there are so many views, this just makes sure it LOADS"""
         view = views.Curate.as_view()
         with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
             models.List.objects.create(name="Public list", user=self.local_user)
@@ -185,210 +307,34 @@ class ListViews(TestCase):
         result = view(request, self.list.id)
         self.assertEqual(result.status_code, 302)
 
-    def test_curate_approve(self):
-        """ approve a pending item """
-        view = views.Curate.as_view()
+    def test_user_lists_page(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.UserLists.as_view()
         with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-            pending = models.ListItem.objects.create(
-                book_list=self.list,
-                user=self.local_user,
-                book=self.book,
-                approved=False,
+            models.List.objects.create(name="Public list", user=self.local_user)
+            models.List.objects.create(
+                name="Private list", privacy="direct", user=self.local_user
             )
-
-        request = self.factory.post(
-            "",
-            {
-                "item": pending.id,
-                "approved": "true",
-            },
-        )
+        request = self.factory.get("")
         request.user = self.local_user
 
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay") as mock:
-            view(request, self.list.id)
+        result = view(request, self.local_user.localname)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
 
-        self.assertEqual(mock.call_count, 1)
-        activity = json.loads(mock.call_args[0][1])
-        self.assertEqual(activity["type"], "Add")
-        self.assertEqual(activity["actor"], self.local_user.remote_id)
-        self.assertEqual(activity["target"], self.list.remote_id)
-
-        pending.refresh_from_db()
-        self.assertEqual(self.list.books.count(), 1)
-        self.assertEqual(self.list.listitem_set.first(), pending)
-        self.assertTrue(pending.approved)
-
-    def test_curate_reject(self):
-        """ approve a pending item """
-        view = views.Curate.as_view()
+    def test_user_lists_page_logged_out(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.UserLists.as_view()
         with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-            pending = models.ListItem.objects.create(
-                book_list=self.list,
-                user=self.local_user,
-                book=self.book,
-                approved=False,
+            models.List.objects.create(name="Public list", user=self.local_user)
+            models.List.objects.create(
+                name="Private list", privacy="direct", user=self.local_user
             )
+        request = self.factory.get("")
+        request.user = self.anonymous_user
 
-        request = self.factory.post(
-            "",
-            {
-                "item": pending.id,
-                "approved": "false",
-            },
-        )
-        request.user = self.local_user
-
-        view(request, self.list.id)
-
-        self.assertFalse(self.list.books.exists())
-        self.assertFalse(models.ListItem.objects.exists())
-
-    def test_add_book(self):
-        """ put a book on a list """
-        request = self.factory.post(
-            "",
-            {
-                "book": self.book.id,
-                "list": self.list.id,
-            },
-        )
-        request.user = self.local_user
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay") as mock:
-            views.list.add_book(request)
-            self.assertEqual(mock.call_count, 1)
-            activity = json.loads(mock.call_args[0][1])
-            self.assertEqual(activity["type"], "Add")
-            self.assertEqual(activity["actor"], self.local_user.remote_id)
-            self.assertEqual(activity["target"], self.list.remote_id)
-
-        item = self.list.listitem_set.get()
-        self.assertEqual(item.book, self.book)
-        self.assertEqual(item.user, self.local_user)
-        self.assertTrue(item.approved)
-
-    def test_add_book_outsider(self):
-        """ put a book on a list """
-        self.list.curation = "open"
-        self.list.save(broadcast=False)
-        request = self.factory.post(
-            "",
-            {
-                "book": self.book.id,
-                "list": self.list.id,
-            },
-        )
-        request.user = self.rat
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay") as mock:
-            views.list.add_book(request)
-            self.assertEqual(mock.call_count, 1)
-            activity = json.loads(mock.call_args[0][1])
-            self.assertEqual(activity["type"], "Add")
-            self.assertEqual(activity["actor"], self.rat.remote_id)
-            self.assertEqual(activity["target"], self.list.remote_id)
-
-        item = self.list.listitem_set.get()
-        self.assertEqual(item.book, self.book)
-        self.assertEqual(item.user, self.rat)
-        self.assertTrue(item.approved)
-
-    def test_add_book_pending(self):
-        """ put a book on a list awaiting approval """
-        self.list.curation = "curated"
-        self.list.save(broadcast=False)
-        request = self.factory.post(
-            "",
-            {
-                "book": self.book.id,
-                "list": self.list.id,
-            },
-        )
-        request.user = self.rat
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay") as mock:
-            views.list.add_book(request)
-
-        self.assertEqual(mock.call_count, 1)
-        activity = json.loads(mock.call_args[0][1])
-
-        self.assertEqual(activity["type"], "Add")
-        self.assertEqual(activity["actor"], self.rat.remote_id)
-        self.assertEqual(activity["target"], self.list.remote_id)
-
-        item = self.list.listitem_set.get()
-        self.assertEqual(activity["object"]["id"], item.remote_id)
-
-        self.assertEqual(item.book, self.book)
-        self.assertEqual(item.user, self.rat)
-        self.assertFalse(item.approved)
-
-    def test_add_book_self_curated(self):
-        """ put a book on a list automatically approved """
-        self.list.curation = "curated"
-        self.list.save(broadcast=False)
-        request = self.factory.post(
-            "",
-            {
-                "book": self.book.id,
-                "list": self.list.id,
-            },
-        )
-        request.user = self.local_user
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay") as mock:
-            views.list.add_book(request)
-            self.assertEqual(mock.call_count, 1)
-            activity = json.loads(mock.call_args[0][1])
-            self.assertEqual(activity["type"], "Add")
-            self.assertEqual(activity["actor"], self.local_user.remote_id)
-            self.assertEqual(activity["target"], self.list.remote_id)
-
-        item = self.list.listitem_set.get()
-        self.assertEqual(item.book, self.book)
-        self.assertEqual(item.user, self.local_user)
-        self.assertTrue(item.approved)
-
-    def test_remove_book(self):
-        """ take an item off a list """
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-            item = models.ListItem.objects.create(
-                book_list=self.list,
-                user=self.local_user,
-                book=self.book,
-            )
-        self.assertTrue(self.list.listitem_set.exists())
-
-        request = self.factory.post(
-            "",
-            {
-                "item": item.id,
-            },
-        )
-        request.user = self.local_user
-
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-            views.list.remove_book(request, self.list.id)
-        self.assertFalse(self.list.listitem_set.exists())
-
-    def test_remove_book_unauthorized(self):
-        """ take an item off a list """
-        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-            item = models.ListItem.objects.create(
-                book_list=self.list,
-                user=self.local_user,
-                book=self.book,
-            )
-        self.assertTrue(self.list.listitem_set.exists())
-        request = self.factory.post(
-            "",
-            {
-                "item": item.id,
-            },
-        )
-        request.user = self.rat
-
-        views.list.remove_book(request, self.list.id)
-        self.assertTrue(self.list.listitem_set.exists())
+        result = view(request, self.local_user.username)
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)

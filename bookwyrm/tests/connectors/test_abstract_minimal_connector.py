@@ -8,10 +8,10 @@ from bookwyrm.connectors.abstract_connector import Mapping, SearchResult
 
 
 class AbstractConnector(TestCase):
-    """ generic code for connecting to outside data sources """
+    """generic code for connecting to outside data sources"""
 
     def setUp(self):
-        """ we need an example connector """
+        """we need an example connector"""
         self.connector_info = models.Connector.objects.create(
             identifier="example.com",
             connector_file="openlibrary",
@@ -23,7 +23,7 @@ class AbstractConnector(TestCase):
         )
 
         class TestConnector(abstract_connector.AbstractMinimalConnector):
-            """ nothing added here """
+            """nothing added here"""
 
             def format_search_result(self, search_result):
                 return search_result
@@ -43,7 +43,7 @@ class AbstractConnector(TestCase):
         self.test_connector = TestConnector("example.com")
 
     def test_abstract_minimal_connector_init(self):
-        """ barebones connector for search with defaults """
+        """barebones connector for search with defaults"""
         connector = self.test_connector
         self.assertEqual(connector.connector, self.connector_info)
         self.assertEqual(connector.base_url, "https://example.com")
@@ -53,12 +53,11 @@ class AbstractConnector(TestCase):
         self.assertEqual(connector.isbn_search_url, "https://example.com/isbn?q=")
         self.assertIsNone(connector.name)
         self.assertEqual(connector.identifier, "example.com")
-        self.assertIsNone(connector.max_query_count)
         self.assertFalse(connector.local)
 
     @responses.activate
     def test_search(self):
-        """ makes an http request to the outside service """
+        """makes an http request to the outside service"""
         responses.add(
             responses.GET,
             "https://example.com/search?q=a%20book%20title",
@@ -73,7 +72,7 @@ class AbstractConnector(TestCase):
 
     @responses.activate
     def test_search_min_confidence(self):
-        """ makes an http request to the outside service """
+        """makes an http request to the outside service"""
         responses.add(
             responses.GET,
             "https://example.com/search?q=a%20book%20title&min_confidence=1",
@@ -85,7 +84,7 @@ class AbstractConnector(TestCase):
 
     @responses.activate
     def test_isbn_search(self):
-        """ makes an http request to the outside service """
+        """makes an http request to the outside service"""
         responses.add(
             responses.GET,
             "https://example.com/isbn?q=123456",
@@ -96,7 +95,7 @@ class AbstractConnector(TestCase):
         self.assertEqual(len(results), 10)
 
     def test_search_result(self):
-        """ a class that stores info about a search result """
+        """a class that stores info about a search result"""
         result = SearchResult(
             title="Title",
             key="https://example.com/book/1",
@@ -109,21 +108,21 @@ class AbstractConnector(TestCase):
         self.assertEqual(result.title, "Title")
 
     def test_create_mapping(self):
-        """ maps remote fields for book data to bookwyrm activitypub fields """
+        """maps remote fields for book data to bookwyrm activitypub fields"""
         mapping = Mapping("isbn")
         self.assertEqual(mapping.local_field, "isbn")
         self.assertEqual(mapping.remote_field, "isbn")
         self.assertEqual(mapping.formatter("bb"), "bb")
 
     def test_create_mapping_with_remote(self):
-        """ the remote field is different than the local field """
+        """the remote field is different than the local field"""
         mapping = Mapping("isbn", remote_field="isbn13")
         self.assertEqual(mapping.local_field, "isbn")
         self.assertEqual(mapping.remote_field, "isbn13")
         self.assertEqual(mapping.formatter("bb"), "bb")
 
     def test_create_mapping_with_formatter(self):
-        """ a function is provided to modify the data """
+        """a function is provided to modify the data"""
         formatter = lambda x: "aa" + x
         mapping = Mapping("isbn", formatter=formatter)
         self.assertEqual(mapping.local_field, "isbn")

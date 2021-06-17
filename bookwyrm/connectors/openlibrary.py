@@ -9,13 +9,13 @@ from .openlibrary_languages import languages
 
 
 class Connector(AbstractConnector):
-    """ instantiate a connector for OL """
+    """instantiate a connector for OL"""
 
     def __init__(self, identifier):
         super().__init__(identifier)
 
-        get_first = lambda a: a[0]
-        get_remote_id = lambda a: self.base_url + a
+        get_first = lambda a, *args: a[0]
+        get_remote_id = lambda a, *args: self.base_url + a
         self.book_mappings = [
             Mapping("title"),
             Mapping("id", remote_field="key", formatter=get_remote_id),
@@ -58,8 +58,15 @@ class Connector(AbstractConnector):
             Mapping("bio", formatter=get_description),
         ]
 
+    def get_book_data(self, remote_id):
+        data = get_data(remote_id)
+        if data.get("type", {}).get("key") == "/type/redirect":
+            remote_id = self.base_url + data.get("location")
+            return get_data(remote_id)
+        return data
+
     def get_remote_id_from_data(self, data):
-        """ format a url from an openlibrary id field """
+        """format a url from an openlibrary id field"""
         try:
             key = data["key"]
         except KeyError:
@@ -75,8 +82,11 @@ class Connector(AbstractConnector):
         except KeyError:
             raise ConnectorException("Invalid book data")
         url = "%s%s/editions" % (self.books_url, key)
-        data = get_data(url)
-        return pick_default_edition(data["entries"])
+        data = self.get_book_data(url)
+        edition = pick_default_edition(data["entries"])
+        if not edition:
+            raise ConnectorException("No editions for work")
+        return edition
 
     def get_work_from_edition_data(self, data):
         try:
@@ -84,10 +94,10 @@ class Connector(AbstractConnector):
         except (IndexError, KeyError):
             raise ConnectorException("No work found for edition")
         url = "%s%s" % (self.books_url, key)
-        return get_data(url)
+        return self.get_book_data(url)
 
     def get_authors_from_data(self, data):
-        """ parse author json and load or create authors """
+        """parse author json and load or create authors"""
         for author_blob in data.get("authors", []):
             author_blob = author_blob.get("author", author_blob)
             # this id is "/authors/OL1234567A"
@@ -99,7 +109,7 @@ class Connector(AbstractConnector):
             yield author
 
     def get_cover_url(self, cover_blob, size="L"):
-        """ ask openlibrary for the cover """
+        """ask openlibrary for the cover"""
         if not cover_blob:
             return None
         cover_id = cover_blob[0]
@@ -141,9 +151,9 @@ class Connector(AbstractConnector):
         )
 
     def load_edition_data(self, olkey):
-        """ query openlibrary for editions of a work """
+        """query openlibrary for editions of a work"""
         url = "%s/works/%s/editions" % (self.books_url, olkey)
-        return get_data(url)
+        return self.get_book_data(url)
 
     def expand_book_data(self, book):
         work = book
@@ -166,7 +176,7 @@ class Connector(AbstractConnector):
 
 
 def ignore_edition(edition_data):
-    """ don't load a million editions that have no metadata """
+    """don't load a million editions that have no metadata"""
     # an isbn, we love to see it
     if edition_data.get("isbn_13") or edition_data.get("isbn_10"):
         return False
@@ -185,19 +195,19 @@ def ignore_edition(edition_data):
 
 
 def get_description(description_blob):
-    """ descriptions can be a string or a dict """
+    """descriptions can be a string or a dict"""
     if isinstance(description_blob, dict):
         return description_blob.get("value")
     return description_blob
 
 
 def get_openlibrary_key(key):
-    """ convert /books/OL27320736M into OL27320736M """
+    """convert /books/OL27320736M into OL27320736M"""
     return key.split("/")[-1]
 
 
 def get_languages(language_blob):
-    """ /language/eng -> English """
+    """/language/eng -> English"""
     langs = []
     for lang in language_blob:
         langs.append(languages.get(lang.get("key", ""), None))
@@ -205,7 +215,7 @@ def get_languages(language_blob):
 
 
 def pick_default_edition(options):
-    """ favor physical copies with covers in english """
+    """favor physical copies with covers in english"""
     if not options:
         return None
     if len(options) == 1:

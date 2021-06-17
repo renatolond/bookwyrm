@@ -11,15 +11,21 @@ DOMAIN = env("DOMAIN")
 VERSION = "0.0.1"
 
 PAGE_LENGTH = env("PAGE_LENGTH", 15)
+DEFAULT_LANGUAGE = env("DEFAULT_LANGUAGE", "English")
 
 # celery
-CELERY_BROKER = env("CELERY_BROKER")
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
+CELERY_BROKER = "redis://:{}@redis_broker:{}/0".format(
+    requests.utils.quote(env("REDIS_BROKER_PASSWORD", "")), env("REDIS_BROKER_PORT")
+)
+CELERY_RESULT_BACKEND = "redis://:{}@redis_broker:{}/0".format(
+    requests.utils.quote(env("REDIS_BROKER_PASSWORD", "")), env("REDIS_BROKER_PORT")
+)
 CELERY_ACCEPT_CONTENT = ["application/json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
 # email
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_PORT = env("EMAIL_PORT", 587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
@@ -34,8 +40,10 @@ LOCALE_PATHS = [
     os.path.join(BASE_DIR, "locale"),
 ]
 
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+
 # Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
+# See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("SECRET_KEY")
@@ -44,7 +52,6 @@ SECRET_KEY = env("SECRET_KEY")
 DEBUG = env.bool("DEBUG", True)
 
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", ["*"])
-OL_URL = env("OL_URL")
 
 # Application definition
 
@@ -104,30 +111,27 @@ MAX_STREAM_LENGTH = int(env("MAX_STREAM_LENGTH", 200))
 STREAMS = ["home", "local", "federated"]
 
 # Database
-# https://docs.djangoproject.com/en/2.0/ref/settings/#databases
+# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-BOOKWYRM_DATABASE_BACKEND = env("BOOKWYRM_DATABASE_BACKEND", "postgres")
-
-BOOKWYRM_DBS = {
-    "postgres": {
+DATABASES = {
+    "default": {
         "ENGINE": "django.db.backends.postgresql_psycopg2",
         "NAME": env("POSTGRES_DB", "fedireads"),
         "USER": env("POSTGRES_USER", "fedireads"),
         "PASSWORD": env("POSTGRES_PASSWORD", "fedireads"),
         "HOST": env("POSTGRES_HOST", ""),
-        "PORT": 5432,
+        "PORT": env("POSTGRES_PORT", 5432),
     },
 }
-
-DATABASES = {"default": BOOKWYRM_DBS[BOOKWYRM_DATABASE_BACKEND]}
 
 
 LOGIN_URL = "/login/"
 AUTH_USER_MODEL = "bookwyrm.User"
 
 # Password validation
-# https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
 
+# pylint: disable=line-too-long
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
@@ -145,7 +149,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/2.0/topics/i18n/
+# https://docs.djangoproject.com/en/3.2/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
 LANGUAGES = [
@@ -153,7 +157,7 @@ LANGUAGES = [
     ("de-de", _("German")),
     ("es", _("Spanish")),
     ("fr-fr", _("French")),
-    ("zh-cn", _("Simplified Chinese")),
+    ("zh-hans", _("Simplified Chinese")),
 ]
 
 
@@ -167,7 +171,7 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.1/howto/static-files/
+# https://docs.djangoproject.com/en/3.2/howto/static-files/
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_URL = "/static/"

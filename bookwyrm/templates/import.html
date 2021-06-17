@@ -20,6 +20,9 @@
                     <option value="GoodReads" {% if current == 'GoodReads' %}selected{% endif %}>
                         GoodReads (CSV)
                     </option>
+                    <option value="Storygraph" {% if current == 'Storygraph' %}selected{% endif %}>
+                        Storygraph (CSV)
+                    </option>
                     <option value="LibraryThing" {% if current == 'LibraryThing' %}selected{% endif %}>
                         LibraryThing (TSV)
                     </option>
@@ -38,8 +41,8 @@
                 </label>
             </div>
             <div class="field">
-                <label class="label">
-                    <p>{% trans "Privacy setting for imported reviews:" %}</p>
+                <label>
+                    <span class="label">{% trans "Privacy setting for imported reviews:" %}</span>
                     {% include 'snippets/privacy_select.html' with no_label=True %}
                 </label>
             </div>
@@ -56,7 +59,7 @@
     {% endif %}
     <ul>
         {% for job in jobs %}
-            <li><a href="/import/{{ job.id }}">{{ job.created_date | naturaltime }}</a></li>
+        <li><a href="{% url 'import-status' job.id %}">{{ job.created_date | naturaltime }}</a></li>
         {% endfor %}
     </ul>
 </div>

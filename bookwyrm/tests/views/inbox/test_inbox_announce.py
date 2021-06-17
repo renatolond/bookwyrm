@@ -9,10 +9,10 @@ from bookwyrm import models, views
 
 # pylint: disable=too-many-public-methods
 class InboxActivities(TestCase):
-    """ inbox tests """
+    """inbox tests"""
 
     def setUp(self):
-        """ basic user and book data """
+        """basic user and book data"""
         self.local_user = models.User.objects.create_user(
             "mouse@example.com",
             "mouse@mouse.com",
@@ -51,8 +51,9 @@ class InboxActivities(TestCase):
         models.SiteSettings.objects.create()
 
     @patch("bookwyrm.activitystreams.ActivityStream.add_status")
-    def test_handle_boost(self, _):
-        """ boost a status """
+    @patch("bookwyrm.activitystreams.ActivityStream.remove_object_from_related_stores")
+    def test_boost(self, redis_mock, _):
+        """boost a status"""
         self.assertEqual(models.Notification.objects.count(), 0)
         activity = {
             "type": "Announce",
@@ -66,16 +67,24 @@ class InboxActivities(TestCase):
         with patch("bookwyrm.models.status.Status.ignore_activity") as discarder:
             discarder.return_value = False
             views.inbox.activity_task(activity)
+
+        # boost added to redis activitystreams
+        self.assertTrue(redis_mock.called)
+
+        # boost created of correct status
         boost = models.Boost.objects.get()
         self.assertEqual(boost.boosted_status, self.status)
+
+        # notification sent to original poster
         notification = models.Notification.objects.get()
         self.assertEqual(notification.user, self.local_user)
         self.assertEqual(notification.related_status, self.status)
 
     @responses.activate
     @patch("bookwyrm.activitystreams.ActivityStream.add_status")
-    def test_handle_boost_remote_status(self, redis_mock):
-        """ boost a status """
+    @patch("bookwyrm.activitystreams.ActivityStream.remove_object_from_related_stores")
+    def test_boost_remote_status(self, redis_mock, _):
+        """boost a status from a remote server"""
         work = models.Work.objects.create(title="work title")
         book = models.Edition.objects.create(
             title="Test",
@@ -123,8 +132,8 @@ class InboxActivities(TestCase):
         self.assertEqual(boost.boosted_status.comment.book, book)
 
     @responses.activate
-    def test_handle_discarded_boost(self):
-        """ test a boost of a mastodon status that will be discarded """
+    def test_discarded_boost(self):
+        """test a boost of a mastodon status that will be discarded"""
         status = models.Status(
             content="hi",
             user=self.remote_user,
@@ -146,12 +155,13 @@ class InboxActivities(TestCase):
         views.inbox.activity_task(activity)
         self.assertEqual(models.Boost.objects.count(), 0)
 
-    def test_handle_unboost(self):
-        """ undo a boost """
-        with patch("bookwyrm.activitystreams.ActivityStream.add_status"):
-            boost = models.Boost.objects.create(
-                boosted_status=self.status, user=self.remote_user
-            )
+    @patch("bookwyrm.activitystreams.ActivityStream.add_status")
+    @patch("bookwyrm.activitystreams.ActivityStream.remove_object_from_related_stores")
+    def test_unboost(self, *_):
+        """undo a boost"""
+        boost = models.Boost.objects.create(
+            boosted_status=self.status, user=self.remote_user
+        )
         activity = {
             "type": "Undo",
             "actor": "hi",
@@ -168,15 +178,11 @@ class InboxActivities(TestCase):
                 "published": "Mon, 25 May 2020 19:31:20 GMT",
             },
         }
-        with patch(
-            "bookwyrm.activitystreams.ActivityStream.remove_object_from_related_stores"
-        ) as redis_mock:
-            views.inbox.activity_task(activity)
-            self.assertTrue(redis_mock.called)
+        views.inbox.activity_task(activity)
         self.assertFalse(models.Boost.objects.exists())
 
-    def test_handle_unboost_unknown_boost(self):
-        """ undo a boost """
+    def test_unboost_unknown_boost(self):
+        """undo a boost"""
         activity = {
             "type": "Undo",
             "actor": "hi",

@@ -13,10 +13,10 @@ from .helpers import is_api_request
 
 # pylint: disable= no-self-use
 class Author(View):
-    """ this person wrote a book """
+    """this person wrote a book"""
 
     def get(self, request, author_id):
-        """ landing page for an author """
+        """landing page for an author"""
         author = get_object_or_404(models.Author, id=author_id)
 
         if is_api_request(request):
@@ -27,9 +27,9 @@ class Author(View):
         ).distinct()
         data = {
             "author": author,
-            "books": [b.get_default_edition() for b in books],
+            "books": [b.default_edition for b in books],
         }
-        return TemplateResponse(request, "author.html", data)
+        return TemplateResponse(request, "author/author.html", data)
 
 
 @method_decorator(login_required, name="dispatch")
@@ -37,22 +37,22 @@ class Author(View):
     permission_required("bookwyrm.edit_book", raise_exception=True), name="dispatch"
 )
 class EditAuthor(View):
-    """ edit author info """
+    """edit author info"""
 
     def get(self, request, author_id):
-        """ info about a book """
+        """info about a book"""
         author = get_object_or_404(models.Author, id=author_id)
         data = {"author": author, "form": forms.AuthorForm(instance=author)}
-        return TemplateResponse(request, "edit_author.html", data)
+        return TemplateResponse(request, "author/edit_author.html", data)
 
     def post(self, request, author_id):
-        """ edit a author cool """
+        """edit a author cool"""
         author = get_object_or_404(models.Author, id=author_id)
 
         form = forms.AuthorForm(request.POST, request.FILES, instance=author)
         if not form.is_valid():
             data = {"author": author, "form": form}
-            return TemplateResponse(request, "edit_author.html", data)
+            return TemplateResponse(request, "author/edit_author.html", data)
         author = form.save()
 
         return redirect("/author/%s" % author.id)

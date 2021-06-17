@@ -1,5 +1,6 @@
 """ connections to external ActivityPub servers """
 from urllib.parse import urlparse
+from django.apps import apps
 from django.db import models
 from .base_model import BookWyrmModel
 
@@ -13,7 +14,7 @@ FederationStatus = models.TextChoices(
 
 
 class FederatedServer(BookWyrmModel):
-    """ store which servers we federate with """
+    """store which servers we federate with"""
 
     server_name = models.CharField(max_length=255, unique=True)
     status = models.CharField(
@@ -25,7 +26,7 @@ class FederatedServer(BookWyrmModel):
     notes = models.TextField(null=True, blank=True)
 
     def block(self):
-        """ block a server """
+        """block a server"""
         self.status = "blocked"
         self.save()
 
@@ -34,8 +35,15 @@ class FederatedServer(BookWyrmModel):
             is_active=False, deactivation_reason="domain_block"
         )
 
+        # check for related connectors
+        if self.application_type == "bookwyrm":
+            connector_model = apps.get_model("bookwyrm.Connector", require_ready=True)
+            connector_model.objects.filter(
+                identifier=self.server_name, active=True
+            ).update(active=False, deactivation_reason="domain_block")
+
     def unblock(self):
-        """ unblock a server """
+        """unblock a server"""
         self.status = "federated"
         self.save()
 
@@ -43,9 +51,18 @@ class FederatedServer(BookWyrmModel):
             is_active=True, deactivation_reason=None
         )
 
+        # check for related connectors
+        if self.application_type == "bookwyrm":
+            connector_model = apps.get_model("bookwyrm.Connector", require_ready=True)
+            connector_model.objects.filter(
+                identifier=self.server_name,
+                active=False,
+                deactivation_reason="domain_block",
+            ).update(active=True, deactivation_reason=None)
+
     @classmethod
     def is_blocked(cls, url):
-        """ look up if a domain is blocked """
+        """look up if a domain is blocked"""
         url = urlparse(url)
         domain = url.netloc
         return cls.objects.filter(server_name=domain, status="blocked").exists()

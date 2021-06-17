@@ -2,6 +2,7 @@
 import json
 from unittest.mock import patch
 
+from django.contrib.auth.models import AnonymousUser
 from django.http import JsonResponse
 from django.template.response import TemplateResponse
 from django.test import TestCase
@@ -12,11 +13,11 @@ from bookwyrm.connectors import abstract_connector
 from bookwyrm.settings import DOMAIN
 
 
-class ShelfViews(TestCase):
-    """ tag views"""
+class Views(TestCase):
+    """tag views"""
 
     def setUp(self):
-        """ we need basic test data and mocks """
+        """we need basic test data and mocks"""
         self.factory = RequestFactory()
         self.local_user = models.User.objects.create_user(
             "mouse@local.com",
@@ -38,7 +39,7 @@ class ShelfViews(TestCase):
         models.SiteSettings.objects.create()
 
     def test_search_json_response(self):
-        """ searches local data only and returns book data in json format """
+        """searches local data only and returns book data in json format"""
         view = views.Search.as_view()
         # we need a connector for this, sorry
         request = self.factory.get("", {"q": "Test Book"})
@@ -52,12 +53,23 @@ class ShelfViews(TestCase):
         self.assertEqual(data[0]["title"], "Test Book")
         self.assertEqual(data[0]["key"], "https://%s/book/%d" % (DOMAIN, self.book.id))
 
-    def test_search_html_response(self):
-        """ searches remote connectors """
+    def test_search_no_query(self):
+        """just the search page"""
+        view = views.Search.as_view()
+        # we need a connector for this, sorry
+        request = self.factory.get("")
+        with patch("bookwyrm.views.search.is_api_request") as is_api:
+            is_api.return_value = False
+            response = view(request)
+        self.assertIsInstance(response, TemplateResponse)
+        response.render()
+
+    def test_search_books(self):
+        """searches remote connectors"""
         view = views.Search.as_view()
 
         class TestConnector(abstract_connector.AbstractMinimalConnector):
-            """ nothing added here """
+            """nothing added here"""
 
             def format_search_result(self, search_result):
                 pass
@@ -92,7 +104,7 @@ class ShelfViews(TestCase):
             connector=connector,
         )
 
-        request = self.factory.get("", {"q": "Test Book"})
+        request = self.factory.get("", {"q": "Test Book", "remote": True})
         request.user = self.local_user
         with patch("bookwyrm.views.search.is_api_request") as is_api:
             is_api.return_value = False
@@ -101,19 +113,44 @@ class ShelfViews(TestCase):
                 response = view(request)
         self.assertIsInstance(response, TemplateResponse)
         response.render()
-        self.assertEqual(
-            response.context_data["book_results"][0].title, "Gideon the Ninth"
-        )
+        self.assertEqual(response.context_data["results"][0].title, "Gideon the Ninth")
 
-    def test_search_html_response_users(self):
-        """ searches remote connectors """
+    def test_search_users(self):
+        """searches remote connectors"""
         view = views.Search.as_view()
-        request = self.factory.get("", {"q": "mouse"})
+        request = self.factory.get("", {"q": "mouse", "type": "user"})
         request.user = self.local_user
-        with patch("bookwyrm.views.search.is_api_request") as is_api:
-            is_api.return_value = False
-            with patch("bookwyrm.connectors.connector_manager.search"):
-                response = view(request)
+        response = view(request)
+
         self.assertIsInstance(response, TemplateResponse)
         response.render()
-        self.assertEqual(response.context_data["user_results"][0], self.local_user)
+        self.assertEqual(response.context_data["results"][0], self.local_user)
+
+    def test_search_users_logged_out(self):
+        """searches remote connectors"""
+        view = views.Search.as_view()
+        request = self.factory.get("", {"q": "mouse", "type": "user"})
+
+        anonymous_user = AnonymousUser
+        anonymous_user.is_authenticated = False
+        request.user = anonymous_user
+
+        response = view(request)
+
+        response.render()
+        self.assertFalse("results" in response.context_data)
+
+    def test_search_lists(self):
+        """searches remote connectors"""
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            booklist = models.List.objects.create(
+                user=self.local_user, name="test list"
+            )
+        view = views.Search.as_view()
+        request = self.factory.get("", {"q": "test", "type": "list"})
+        request.user = self.local_user
+        response = view(request)
+
+        self.assertIsInstance(response, TemplateResponse)
+        response.render()
+        self.assertEqual(response.context_data["results"][0], booklist)

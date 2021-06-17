@@ -43,21 +43,47 @@ urlpatterns = [
     re_path("^api/updates/notifications/?$", views.get_notification_count),
     re_path("^api/updates/stream/(?P<stream>[a-z]+)/?$", views.get_unread_status_count),
     # authentication
-    re_path(r"^login/?$", views.Login.as_view()),
+    re_path(r"^login/?$", views.Login.as_view(), name="login"),
     re_path(r"^register/?$", views.Register.as_view()),
-    re_path(r"^logout/?$", views.Logout.as_view()),
-    re_path(r"^password-reset/?$", views.PasswordResetRequest.as_view()),
+    re_path(r"^logout/?$", views.Logout.as_view(), name="logout"),
+    re_path(
+        r"^password-reset/?$",
+        views.PasswordResetRequest.as_view(),
+        name="password-reset",
+    ),
     re_path(
         r"^password-reset/(?P<code>[A-Za-z0-9]+)/?$", views.PasswordReset.as_view()
     ),
     # admin
-    re_path(r"^settings/site-settings", views.Site.as_view(), name="settings-site"),
+    re_path(r"^settings/site-settings/?$", views.Site.as_view(), name="settings-site"),
     re_path(
-        r"^settings/email-preview",
+        r"^settings/announcements/?$",
+        views.Announcements.as_view(),
+        name="settings-announcements",
+    ),
+    re_path(
+        r"^settings/announcements/(?P<announcement_id>\d+)/?$",
+        views.Announcement.as_view(),
+        name="settings-announcements",
+    ),
+    re_path(
+        r"^settings/announcements/(?P<announcement_id>\d+)/delete/?$",
+        views.delete_announcement,
+        name="settings-announcements-delete",
+    ),
+    re_path(
+        r"^settings/email-preview/?$",
         views.site.email_preview,
         name="settings-email-preview",
     ),
-    re_path(r"^settings/users", views.UserAdmin.as_view(), name="settings-users"),
+    re_path(
+        r"^settings/users/?$", views.UserAdminList.as_view(), name="settings-users"
+    ),
+    re_path(
+        r"^settings/users/(?P<user>\d+)/?$",
+        views.UserAdmin.as_view(),
+        name="settings-user",
+    ),
     re_path(
         r"^settings/federation/?$",
         views.Federation.as_view(),
@@ -113,9 +139,9 @@ urlpatterns = [
         name="settings-report",
     ),
     re_path(
-        r"^settings/reports/(?P<report_id>\d+)/deactivate/?$",
-        views.deactivate_user,
-        name="settings-report-deactivate",
+        r"^settings/reports/(?P<user_id>\d+)/suspend/?$",
+        views.suspend_user,
+        name="settings-report-suspend",
     ),
     re_path(
         r"^settings/reports/(?P<report_id>\d+)/resolve/?$",
@@ -127,7 +153,12 @@ urlpatterns = [
     re_path(r"^about/?$", views.About.as_view(), name="about"),
     path("", views.Home.as_view(), name="landing"),
     re_path(r"^discover/?$", views.Discover.as_view()),
-    re_path(r"^notifications/?$", views.Notifications.as_view()),
+    re_path(r"^notifications/?$", views.Notifications.as_view(), name="notifications"),
+    re_path(
+        r"^notifications/(?P<notification_type>mentions)/?$",
+        views.Notifications.as_view(),
+        name="notifications",
+    ),
     re_path(r"^directory/?", views.Directory.as_view(), name="directory"),
     # Get started
     re_path(
@@ -156,10 +187,10 @@ urlpatterns = [
         name="direct-messages-user",
     ),
     # search
-    re_path(r"^search/?$", views.Search.as_view()),
+    re_path(r"^search/?$", views.Search.as_view(), name="search"),
     # imports
-    re_path(r"^import/?$", views.Import.as_view()),
-    re_path(r"^import/(\d+)/?$", views.ImportStatus.as_view()),
+    re_path(r"^import/?$", views.Import.as_view(), name="import"),
+    re_path(r"^import/(\d+)/?$", views.ImportStatus.as_view(), name="import-status"),
     # users
     re_path(r"%s/?$" % user_path, views.User.as_view(), name="user-feed"),
     re_path(r"%s\.json$" % user_path, views.User.as_view()),
@@ -185,9 +216,14 @@ urlpatterns = [
         name="list-remove-book",
     ),
     re_path(
+        r"^list-item/(?P<list_item_id>\d+)/set-position$",
+        views.list.set_book_position,
+        name="list-set-book-position",
+    ),
+    re_path(
         r"^list/(?P<list_id>\d+)/curate/?$", views.Curate.as_view(), name="list-curate"
     ),
-    # Uyser books
+    # User books
     re_path(r"%s/books/?$" % user_path, views.Shelf.as_view(), name="user-shelves"),
     re_path(
         r"^%s/(helf|books)/(?P<shelf_identifier>[\w-]+)(.json)?/?$" % user_path,
@@ -212,8 +248,13 @@ urlpatterns = [
     re_path(r"^hide-goal/?$", views.hide_goal, name="hide-goal"),
     # preferences
     re_path(r"^preferences/profile/?$", views.EditUser.as_view(), name="prefs-profile"),
-    re_path(r"^preferences/password/?$", views.ChangePassword.as_view()),
-    re_path(r"^preferences/block/?$", views.Block.as_view()),
+    re_path(
+        r"^preferences/password/?$",
+        views.ChangePassword.as_view(),
+        name="prefs-password",
+    ),
+    re_path(r"^preferences/delete/?$", views.DeleteUser.as_view(), name="prefs-delete"),
+    re_path(r"^preferences/block/?$", views.Block.as_view(), name="prefs-block"),
     re_path(r"^block/(?P<user_id>\d+)/?$", views.Block.as_view()),
     re_path(r"^unblock/(?P<user_id>\d+)/?$", views.unblock),
     # statuses
@@ -248,10 +289,15 @@ urlpatterns = [
     re_path(r"^boost/(?P<status_id>\d+)/?$", views.Boost.as_view()),
     re_path(r"^unboost/(?P<status_id>\d+)/?$", views.Unboost.as_view()),
     # books
-    re_path(r"%s(.json)?/?$" % book_path, views.Book.as_view()),
+    re_path(r"%s(.json)?/?$" % book_path, views.Book.as_view(), name="book"),
+    re_path(
+        r"%s/(?P<user_statuses>review|comment|quote)/?$" % book_path,
+        views.Book.as_view(),
+        name="book-user-statuses",
+    ),
     re_path(r"%s/edit/?$" % book_path, views.EditBook.as_view()),
     re_path(r"%s/confirm/?$" % book_path, views.ConfirmEditBook.as_view()),
-    re_path(r"^create-book/?$", views.EditBook.as_view()),
+    re_path(r"^create-book/?$", views.EditBook.as_view(), name="create-book"),
     re_path(r"^create-book/confirm?$", views.ConfirmEditBook.as_view()),
     re_path(r"%s/editions(.json)?/?$" % book_path, views.Editions.as_view()),
     re_path(
@@ -265,18 +311,17 @@ urlpatterns = [
     # author
     re_path(r"^author/(?P<author_id>\d+)(.json)?/?$", views.Author.as_view()),
     re_path(r"^author/(?P<author_id>\d+)/edit/?$", views.EditAuthor.as_view()),
-    # tags
-    re_path(r"^tag/(?P<tag_id>.+)\.json/?$", views.Tag.as_view()),
-    re_path(r"^tag/(?P<tag_id>.+)/?$", views.Tag.as_view()),
-    re_path(r"^tag/?$", views.AddTag.as_view()),
-    re_path(r"^untag/?$", views.RemoveTag.as_view()),
     # reading progress
     re_path(r"^edit-readthrough/?$", views.edit_readthrough, name="edit-readthrough"),
     re_path(r"^delete-readthrough/?$", views.delete_readthrough),
     re_path(r"^create-readthrough/?$", views.create_readthrough),
     re_path(r"^delete-progressupdate/?$", views.delete_progressupdate),
-    re_path(r"^start-reading/(?P<book_id>\d+)/?$", views.start_reading),
-    re_path(r"^finish-reading/(?P<book_id>\d+)/?$", views.finish_reading),
+    # shelve actions
+    re_path(
+        r"^reading-status/(?P<status>want|start|finish)/(?P<book_id>\d+)/?$",
+        views.ReadingStatus.as_view(),
+        name="reading-status",
+    ),
     # following
     re_path(r"^follow/?$", views.follow, name="follow"),
     re_path(r"^unfollow/?$", views.unfollow, name="unfollow"),

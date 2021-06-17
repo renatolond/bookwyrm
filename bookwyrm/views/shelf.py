@@ -2,6 +2,7 @@
 from collections import namedtuple
 
 from django.db import IntegrityError
+from django.db.models import OuterRef, Subquery
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpResponseBadRequest, HttpResponseNotFound
@@ -19,23 +20,20 @@ from .helpers import is_api_request, get_edition, get_user_from_username
 from .helpers import handle_reading_status, privacy_filter
 
 
-# pylint: disable= no-self-use
+# pylint: disable=no-self-use
 class Shelf(View):
-    """ shelf page """
+    """shelf page"""
 
     def get(self, request, username, shelf_identifier=None):
-        """ display a shelf """
-        try:
-            user = get_user_from_username(request.user, username)
-        except models.User.DoesNotExist:
-            return HttpResponseNotFound()
+        """display a shelf"""
+        user = get_user_from_username(request.user, username)
 
-        try:
-            page = int(request.GET.get("page", 1))
-        except ValueError:
-            page = 1
+        is_self = user == request.user
 
-        shelves = privacy_filter(request.user, user.shelf_set)
+        if is_self:
+            shelves = user.shelf_set
+        else:
+            shelves = privacy_filter(request.user, user.shelf_set)
 
         # get the shelf and make sure the logged in user should be able to see it
         if shelf_identifier:
@@ -45,40 +43,58 @@ class Shelf(View):
                 return HttpResponseNotFound()
             if not shelf.visible_to_user(request.user):
                 return HttpResponseNotFound()
+            books = shelf.books
         # this is a constructed "all books" view, with a fake "shelf" obj
         else:
             FakeShelf = namedtuple(
                 "Shelf", ("identifier", "name", "user", "books", "privacy")
             )
             books = models.Edition.objects.filter(
+                # privacy is ensured because the shelves are already filtered above
                 shelfbook__shelf__in=shelves.all()
             ).distinct()
             shelf = FakeShelf("all", _("All books"), user, books, "public")
 
-        is_self = request.user == user
-
         if is_api_request(request):
             return ActivitypubResponse(shelf.to_activity(**request.GET))
 
+        reviews = models.Review.objects.filter(
+            user=user,
+            rating__isnull=False,
+            book__id=OuterRef("id"),
+            deleted=False,
+        ).order_by("-published_date")
+
+        if not is_self:
+            reviews = privacy_filter(request.user, reviews)
+
+        books = books.annotate(
+            rating=Subquery(reviews.values("rating")[:1])
+        ).prefetch_related("authors")
+
         paginated = Paginator(
-            shelf.books.order_by("-updated_date").all(),
+            books.order_by("-shelfbook__updated_date"),
             PAGE_LENGTH,
         )
 
+        page = paginated.get_page(request.GET.get("page"))
         data = {
             "user": user,
             "is_self": is_self,
             "shelves": shelves.all(),
             "shelf": shelf,
-            "books": paginated.get_page(page),
+            "books": page,
+            "page_range": paginated.get_elided_page_range(
+                page.number, on_each_side=2, on_ends=1
+            ),
         }
 
-        return TemplateResponse(request, "user/shelf.html", data)
+        return TemplateResponse(request, "user/shelf/shelf.html", data)
 
     @method_decorator(login_required, name="dispatch")
     # pylint: disable=unused-argument
     def post(self, request, username, shelf_identifier):
-        """ edit a shelf """
+        """edit a shelf"""
         try:
             shelf = request.user.shelf_set.get(identifier=shelf_identifier)
         except models.Shelf.DoesNotExist:
@@ -99,7 +115,7 @@ class Shelf(View):
 @login_required
 @require_POST
 def create_shelf(request):
-    """ user generated shelves """
+    """user generated shelves"""
     form = forms.ShelfForm(request.POST)
     if not form.is_valid():
         return redirect(request.headers.get("Referer", "/"))
@@ -111,7 +127,7 @@ def create_shelf(request):
 @login_required
 @require_POST
 def delete_shelf(request, shelf_id):
-    """ user generated shelves """
+    """user generated shelves"""
     shelf = get_object_or_404(models.Shelf, id=shelf_id)
     if request.user != shelf.user or not shelf.editable:
         return HttpResponseBadRequest()
@@ -123,7 +139,7 @@ def delete_shelf(request, shelf_id):
 @login_required
 @require_POST
 def shelve(request):
-    """ put a book on a user's shelf """
+    """put a book on a user's shelf"""
     book = get_edition(request.POST.get("book"))
 
     desired_shelf = models.Shelf.objects.filter(
@@ -162,11 +178,6 @@ def shelve(request):
         models.ShelfBook.objects.create(
             book=book, shelf=desired_shelf, user=request.user
         )
-        if desired_shelf.identifier == models.Shelf.TO_READ and request.POST.get(
-            "post-status"
-        ):
-            privacy = request.POST.get("privacy") or desired_shelf.privacy
-            handle_reading_status(request.user, desired_shelf, book, privacy=privacy)
     else:
         try:
             models.ShelfBook.objects.create(
@@ -182,7 +193,7 @@ def shelve(request):
 @login_required
 @require_POST
 def unshelve(request):
-    """ put a  on a user's shelf """
+    """put a  on a user's shelf"""
     book = models.Edition.objects.get(id=request.POST["book"])
     current_shelf = models.Shelf.objects.get(id=request.POST["shelf"])
 
@@ -190,8 +201,7 @@ def unshelve(request):
     return redirect(request.headers.get("Referer", "/"))
 
 
-# pylint: disable=unused-argument
 def handle_unshelve(book, shelf):
-    """ unshelve a book """
+    """unshelve a book"""
     row = models.ShelfBook.objects.get(book=book, shelf=shelf)
     row.delete()
